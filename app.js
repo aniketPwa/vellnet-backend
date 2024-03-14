@@ -5,11 +5,15 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const app = express();
-app.use(express.json());
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
+const JWT_SECRET = "b8e8709ef9c3289c758a6cffe423c77b7ff00bbf8c00d0a20e479ac4a7f7c791"; // Replace with a secure secret key
 
-mongoose.connect(process.env.DB_URI + `/vellnet`, {
+
+app.use(express.json());
+app.use(cors()); 
+
+mongoose.connect(process.env.DB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
@@ -25,6 +29,8 @@ const userSchema = new mongoose.Schema({
   zipcode: {type:Number},
   uid: {type:String},
   userType: {type:String},
+  userImg: {type:String},
+  status: {type:String},
 });
 userSchema.pre('save', async function(next) {
   try {
@@ -48,18 +54,13 @@ function generateUserId() {
 }
 
 
-app.use(cors()); // Allow Cross-Origin Resource Sharing
-
-
-const JWT_SECRET = "b8e8709ef9c3289c758a6cffe423c77b7ff00bbf8c00d0a20e479ac4a7f7c791"; // Replace with a secure secret key
-
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/') // Specify upload directory
   },
   filename: function (req, file, cb) {
-    cb(null, file.originalname) // Use original filename
+    cb(null, Date.now()+'_'+file.originalname) // Use original filename
   }
 });
 const upload = multer({ storage: storage });
@@ -69,7 +70,6 @@ const upload = multer({ storage: storage });
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    console.log(username, "username");
     const user = await Users.findOne({ email: username });
     console.log(user["uid"]);
     if (!user) {
@@ -85,6 +85,7 @@ app.post("/login", async (req, res) => {
     const UserData = { token: token, uid: user.uid, type: user.userType };
     res.json(UserData);
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
@@ -92,6 +93,7 @@ app.post("/login", async (req, res) => {
 // get User
 app.get("/getUser/:userId", authenticateToken, async (req, res) => {
   const userId = req.params.userId;
+  try{
   const user = await Users.findOne({ uid: userId });
   const userdata = {
     name: user.fullName,
@@ -103,53 +105,80 @@ app.get("/getUser/:userId", authenticateToken, async (req, res) => {
     uid: user.uid,
   };
   res.json(userdata);
+}
+catch(error){
+  res.send({message:'something went wrong'})  
+}
 });
-app.use('/uploads', authenticateToken , express.static('uploads'));
-//add patient
+app.use('/uploads' , express.static('uploads'));
+
+//add user
 app.post("/addUser", upload.single('userImage') ,async (req, res) => {
   const document = req.body;
-  const file = req.file;
-
-  const userId = generateUserId();
-  document.uid = userId// Example usage
-  const fileLink = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-
-  console.log('document',document)
-  console.log('file',fileLink)
-  // try {
-  //   //   // Check for validation errors
-  //   const errors = validationResult(req);
-  //   if (!errors.isEmpty()) {
-  //     return res.status(400).json({ errors: errors.array() });
-  //   }
-
-  //   const document = req.body;
-
-  //   const query = { email: document.email };
-  //   Users.findOne(query)
-  //     .then((existingUser) => {
-  //       if (existingUser) {
-  //         console.log("Document already exists:");
-  //       } else {
-         
-  //         const newUser = new Users(document);
-
-  //         return newUser.save();
-  //       }
-  //     })
-  //     .then((newlyInsertedUser) => {
-  //       if (newlyInsertedUser) {
-  //         console.log("New document inserted:");
-  //       }
-  //     })
-  //     .catch((error) => {
-  //       console.error("Error checking or inserting document:", error);
-  //     });
-  // } catch (error) {
-  //   console.error("Error inserting document:", error);
-  //   next(error); // Pass the error to the error handling middleware
-  // }
+  const file = req.file; 
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    if(!document.dob){
+      document.dob = null
+    }
+    document.status = "active"
+    const userId = generateUserId();
+    document.uid = userId// Example usage
+    if(file){
+      const fileLink = `/uploads/${file.filename}`;
+      document.userImg = fileLink;
+    } else {
+      document.userImg = null
+    }
+    const query = { email: document.email };
+    Users.findOne(query)
+      .then((existingUser) => {
+        if (existingUser) {
+          console.log("Document already exists:");
+        } else {
+          const newUser = new Users(document);
+          return newUser.save();
+        }
+      })
+      .then((newlyInsertedUser) => {
+        if (newlyInsertedUser) {
+          res.send({success:true})
+          console.log("New document inserted:");
+        }
+      })
+      .catch((error) => {
+        console.error("Error checking or inserting document:", error);
+      });
+  } catch (error) {
+    console.error("Error inserting document:", error);
+    next(error); // Pass the error to the error handling middleware
+  }
 });
+
+//get all users by type
+
+app.post("/getUsers" ,async (req, res) => {
+  const { type } = req.body;
+  try {
+    let allUsers;
+    if(type=="all"){
+       allUsers = await Users.find({ userType: { $ne: "admin" } });
+    } else{
+       allUsers = await Users.find({ userType: type });
+    }
+    if(allUsers){
+      res.send(allUsers)
+    }
+  }
+  catch(error){
+    res.send({message:'something went wrong'})
+  }
+});
+
+//get 
 //
 // Middleware to authenticate JWT token
 function authenticateToken(req, res, next) {
