@@ -13,7 +13,7 @@ const JWT_SECRET = "b8e8709ef9c3289c758a6cffe423c77b7ff00bbf8c00d0a20e479ac4a7f7
 app.use(express.json());
 app.use(cors()); 
 
-mongoose.connect(process.env.DB_URI, {
+mongoose.connect('mongodb://ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
