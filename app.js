@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
   uid: {type:String},
   userType: {type:String},
   userImg: {type:String},
+  certificates: {type:String},
   status: {type:String},
 });
 userSchema.pre('save', async function(next) {
@@ -70,8 +71,8 @@ const upload = multer({ storage: storage });
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {
+    console.log(username , password)
     const user = await Users.findOne({ email: username });
-    console.log(user["uid"]);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
