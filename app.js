@@ -12,14 +12,15 @@ const JWT_SECRET =
 
 app.use(express.json());
 app.use(cors());
-
-mongoose.connect("mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet", {
+let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
+// let dbUrl = "mongodb://localhost:27017/vellnet";
+mongoose.connect(dbUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
-bcrypt.hash("admin@123", 10).then((p) => {
-  console.log(p);
-});
+// bcrypt.hash("admin@123", 10).then((p) => {
+//   console.log(p);
+// });
 const userSchema = new mongoose.Schema({
   fullName: { type: String },
   email: { type: String },
@@ -56,9 +57,9 @@ const medicalSchema = new mongoose.Schema({
   medicaldata: {
     bloodPressure: { type: Array },
     weight: { type: Array },
-    BMI: { type: Array },
-    diet: { type: Array },
+    height: { type: Array }, 
     steps: { type: Array },
+    diet: { type: Array },
   },
 });
 const medicalRecords = mongoose.model("medicalrecords", medicalSchema);
@@ -103,20 +104,39 @@ app.post("/login", async (req, res) => {
 });
 
 // get User
+app.get("/getuserMedicalData/:userId", authenticateToken, async (req, res) => {
+  const userId = req.params.userId;
+  try {
+    const user = await medicalRecords.findOne({ uid: userId });
+    // const userdata = {
+    //   name: user.fullName,
+    //   gender: user.gender,
+    //   email: user.email,
+    //   add: user.address,
+    //   type: user.userType,
+    //   dob: user.dob,
+    //   uid: user.uid,
+    // };
+    res.json(user.medicaldata);
+  } catch (error) {
+    res.send({ message: "something went wrong" });
+  }
+});
+
 app.get("/getUser/:userId", authenticateToken, async (req, res) => {
   const userId = req.params.userId;
   try {
     const user = await Users.findOne({ uid: userId });
-    const userdata = {
-      name: user.fullName,
-      gender: user.gender,
-      email: user.email,
-      add: user.address,
-      type: user.userType,
-      dob: user.dob,
-      uid: user.uid,
-    };
-    res.json(userdata);
+    // const userdata = {
+    //   name: user.fullName,
+    //   gender: user.gender,
+    //   email: user.email,
+    //   add: user.address,
+    //   type: user.userType,
+    //   dob: user.dob,
+    //   uid: user.uid,
+    // };
+    res.json(user);
   } catch (error) {
     res.send({ message: "something went wrong" });
   }
@@ -143,7 +163,7 @@ app.post(
       const userId = generateUserId();
       document.uid = userId; // Example usage
       if (file) {
-        const fileLink = `/uploads/${Date.now() + "_" + file.filename}`;
+        const fileLink = `uploads/${file.filename}`;
         document.userImg = fileLink;
       } else {
         document.userImg = null;
@@ -192,73 +212,184 @@ app.post("/getUsers", async (req, res) => {
     res.send({ message: "something went wrong" });
   }
 });
-app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
+
+app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
   const { uid, data, type } = req.body;
+  console.log('action', req.body)
   let updateData = {};
   const time = new Date();
   let today =
-    time.getDate()+1 + "/" + (time.getMonth() + 1) + "/" + time.getFullYear();
-  if (type == "bp") {
-    updateData = { bp: data, updatedOn: today };
-  }
-  function updateRecords(action){
+    time.getDate() + "/" + (time.getMonth() + 1) + "/" + time.getFullYear();
     
+  
+  function updateRecords(action) {
     let newValues;
-    let options = {}
-    if(action=="update"){
-      
-      
-      newValues = { $set: {
-        "medicaldata.bloodPressure.$[element].bp": data
-      }}
-      options = {
-        arrayFilters: [{ "element.updatedOn": today }]
-      }
-    } else{
-      newValues = {
-        $push: {
-          "medicaldata.bloodPressure": {
-            bp: data,
-            updatedOn: today
-          }
-      },
-    }
-    }
+    let options = {};
 
-    medicalRecords.findOneAndUpdate(
-      { uid: uid }, 
-      { ...newValues },
-      {...options},
-      { upsert: true, new: true, setDefaultsOnInsert: true} // To return the updated document
-    )
-    .then(updatedDocument => {
-      if (updatedDocument) {
-        console.log("updatedDocument");
-      } else {
-        console.log('Document not found');
+    if (action == "update") {
+      switch(type){
+        case 'bp': 
+          newValues = {
+            $set: {
+              "medicaldata.bloodPressure.$[element].bp": data,
+            },
+          };
+        break;
+        case 'dbp': 
+          newValues = {
+            $set: {
+              "medicaldata.bloodPressure.$[element].dbp": data,
+            },
+          };
+        break;
+        case 'weight': 
+          newValues = {
+            $set: {
+              "medicaldata.weight.$[element].data": data,
+            },
+          };
+        break;
+        case 'height': 
+          newValues = {
+            $set: {
+              "medicaldata.height.$[element].data": data,
+            },
+          };
+        break;
+        case 'steps': 
+          newValues = {
+            $set: {
+              "medicaldata.steps.$[element].data": data,
+            },
+          };
+        break;
+        case 'diet': 
+          newValues = {
+            $set: {
+              "medicaldata.diet.$[element].data": data,
+            },
+          };
+        break;
       }
-    })
-    .catch(error => {
-      console.error(error);
-    });
+      options = {
+        arrayFilters: [{ "element.updatedOn": today }],
+      };
+    } else {
+      let pushData = {};
+      switch(type){
+        case 'bp':
+         pushData = {
+          "medicaldata.bloodPressure": {
+            bp : data,
+            updatedOn: today,
+          }
+          }
+        
+        break;
+        case 'dbp':
+          pushData = {
+            "medicaldata.bloodPressure": {
+              dbp : data,
+              updatedOn: today,
+            }
+            }
+        break;
+        case 'weight':
+          pushData = {
+            "medicaldata.weight": {
+              data : data,
+              updatedOn: today,
+            }
+            }
+        break;
+        case 'height':
+          pushData = {
+            "medicaldata.height": {
+              data : data,
+              updatedOn: today,
+            }
+            }
+        break;
+        case 'steps':
+          pushData = {
+            "medicaldata.steps": {
+              data : data,
+              updatedOn: today,
+            }
+            }
+        break;
+        case 'diet':
+          pushData = {
+            "medicaldata.diet": {
+              data : data,
+              updatedOn: today,
+            }
+            }
+        break;
+      }
+
+      newValues = {
+        $push: pushData,
+      };
+    }
+    console.log('newValues', newValues)
+    medicalRecords
+      .findOneAndUpdate(
+        { uid: uid },
+        { ...newValues },
+        { ...options },
+        { upsert: true, new: true, setDefaultsOnInsert: true } // To return the updated document
+      )
+      .then((updatedDocument) => {
+        if (updatedDocument) {
+          console.log("updatedDocument");
+        } else {
+          console.log("Document not found");
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   }
   try {
+    let variable;
+    switch(type){
+     case 'bp':
+        variable = "bloodPressure";
+      
+     break;
+     case 'dbp':
+        variable = "bloodPressure";
+      
+     break;
+     case 'weight':
+       variable = "weight";
+     break;
+     case 'height':
+      variable = "height";
+    break;
+    case 'steps':
+      variable = "steps";
+    break;
+    case 'diet':
+      variable = "diet";
+    break;
+   }
     const user = await Users.findOne({ uid: uid });
     if (user) {
       medicalRecords.findOne({ uid: uid }).then((m) => {
         if (m) {
-          
+          console.log(m.medicaldata[variable])
           if (
-            m.medicaldata.bloodPressure &&
-            m.medicaldata.bloodPressure[m.medicaldata.bloodPressure.length - 1]
-              .updatedOn == today
-          ) { 
-            updateRecords("update")
+            m.medicaldata[variable] &&  m.medicaldata[variable].length &&
+            m.medicaldata[variable][m.medicaldata[variable].length - 1].updatedOn == today
+          ) {
+            updateRecords("update");
           } else {
-            updateRecords("insert") 
+            updateRecords("insert");
           }
         } else {
-          updateRecords("insert") 
+          updateRecords("insert");
         }
       });
     }
@@ -271,6 +402,8 @@ app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
     res.send({ message: "something went wrong" });
   }
 });
+
+
 
 //get
 //
