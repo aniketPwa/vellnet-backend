@@ -275,6 +275,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
         arrayFilters: [{ "element.updatedOn": today }],
       };
     } else {
+      options = {upsert: true, new: true, setDefaultsOnInsert: true };
       let pushData = {};
       switch(type){
         case 'bp':
@@ -332,13 +333,12 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
         $push: pushData,
       };
     }
-    console.log('newValues', newValues)
+    console.log('newValues', options)
     medicalRecords
       .findOneAndUpdate(
         { uid: uid },
         { ...newValues },
-        { ...options },
-        { upsert: true, new: true, setDefaultsOnInsert: true } // To return the updated document
+        { ...options }, 
       )
       .then((updatedDocument) => {
         if (updatedDocument) {
