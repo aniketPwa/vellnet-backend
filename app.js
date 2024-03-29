@@ -57,7 +57,7 @@ const medicalSchema = new mongoose.Schema({
   medicaldata: {
     bloodPressure: { type: Array },
     weight: { type: Array },
-    height: { type: Array }, 
+    height: { type: Array },
     steps: { type: Array },
     diet: { type: Array },
   },
@@ -83,7 +83,6 @@ const upload = multer({ storage: storage });
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {
-    console.log(username, password);
     const user = await Users.findOne({ email: username });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -196,14 +195,20 @@ app.post(
 
 //get all users by type
 
-app.post("/getUsers", async (req, res) => {
+app.post("/getUsers", authenticateToken, async (req, res) => {
   const { type } = req.body;
   try {
     let allUsers;
     if (type == "all") {
-      allUsers = await Users.find({ userType: { $ne: "admin" } });
+      allUsers = await Users.find({
+        userType: { $ne: "admin" },
+        status: { $ne: "deleted" },
+      });
     } else {
-      allUsers = await Users.find({ userType: type });
+      allUsers = await Users.find({
+        userType: type,
+        status: { $ne: "deleted" },
+      });
     }
     if (allUsers) {
       res.send(allUsers);
@@ -212,137 +217,150 @@ app.post("/getUsers", async (req, res) => {
     res.send({ message: "something went wrong" });
   }
 });
-
+app.post("/deleteUser", authenticateToken, async (req, res) => {
+  const { uid } = req.body; 
+  await Users
+      .findOneAndUpdate({ uid: uid }, 
+        { 
+          $set: {
+            "status": "deleted",
+          },
+         }, 
+        {new:true })
+      .then((updatedDocument) => {
+        if (updatedDocument) {
+          res.send({success:true})
+        } else {
+          res.send({success:false})
+          console.log("Document not found");
+        }
+      })
+})
 app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
   const { uid, data, type } = req.body;
-  console.log('action', req.body)
-  let updateData = {};
   const time = new Date();
   let today =
     time.getDate() + "/" + (time.getMonth() + 1) + "/" + time.getFullYear();
-    
-  
-  function updateRecords(action) {
+  async function updateRecords(action) {
     let newValues;
     let options = {};
 
     if (action == "update") {
-      switch(type){
-        case 'bp': 
+      switch (type) {
+        case "bp":
           newValues = {
             $set: {
               "medicaldata.bloodPressure.$[element].bp": data,
             },
           };
-        break;
-        case 'dbp': 
+          break;
+        case "dbp":
           newValues = {
             $set: {
               "medicaldata.bloodPressure.$[element].dbp": data,
             },
           };
-        break;
-        case 'weight': 
+          break;
+        case "weight":
           newValues = {
             $set: {
               "medicaldata.weight.$[element].data": data,
             },
           };
-        break;
-        case 'height': 
+          break;
+        case "height":
           newValues = {
             $set: {
               "medicaldata.height.$[element].data": data,
             },
           };
-        break;
-        case 'steps': 
+          break;
+        case "steps":
           newValues = {
             $set: {
               "medicaldata.steps.$[element].data": data,
             },
           };
-        break;
-        case 'diet': 
+          break;
+        case "diet":
           newValues = {
             $set: {
               "medicaldata.diet.$[element].data": data,
             },
           };
-        break;
+          break;
       }
       options = {
         arrayFilters: [{ "element.updatedOn": today }],
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
       };
     } else {
-      options = {upsert: true, new: true, setDefaultsOnInsert: true };
+      options = { upsert: true, new: true, setDefaultsOnInsert: true };
       let pushData = {};
-      switch(type){
-        case 'bp':
-         pushData = {
-          "medicaldata.bloodPressure": {
-            bp : data,
-            updatedOn: today,
-          }
-          }
-        
-        break;
-        case 'dbp':
+      switch (type) {
+        case "bp":
           pushData = {
             "medicaldata.bloodPressure": {
-              dbp : data,
+              bp: data,
               updatedOn: today,
-            }
-            }
-        break;
-        case 'weight':
+            },
+          };
+
+          break;
+        case "dbp":
+          pushData = {
+            "medicaldata.bloodPressure": {
+              dbp: data,
+              updatedOn: today,
+            },
+          };
+          break;
+        case "weight":
           pushData = {
             "medicaldata.weight": {
-              data : data,
+              data: data,
               updatedOn: today,
-            }
-            }
-        break;
-        case 'height':
+            },
+          };
+          break;
+        case "height":
           pushData = {
             "medicaldata.height": {
-              data : data,
+              data: data,
               updatedOn: today,
-            }
-            }
-        break;
-        case 'steps':
+            },
+          };
+          break;
+        case "steps":
           pushData = {
             "medicaldata.steps": {
-              data : data,
+              data: data,
               updatedOn: today,
-            }
-            }
-        break;
-        case 'diet':
+            },
+          };
+          break;
+        case "diet":
           pushData = {
             "medicaldata.diet": {
-              data : data,
+              data: data,
               updatedOn: today,
-            }
-            }
-        break;
+            },
+          };
+          break;
       }
 
       newValues = {
         $push: pushData,
       };
     }
-    console.log('newValues', options)
-    medicalRecords
-      .findOneAndUpdate(
-        { uid: uid },
-        { ...newValues },
-        { ...options }, 
-      )
+
+   let updatedData = await medicalRecords
+      .findOneAndUpdate({ uid: uid }, { ...newValues }, { ...options })
       .then((updatedDocument) => {
         if (updatedDocument) {
-          console.log("updatedDocument");
+          return updatedDocument;
         } else {
           console.log("Document not found");
         }
@@ -350,60 +368,66 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
       .catch((error) => {
         console.error(error);
       });
+    return updatedData;
   }
   try {
     let variable;
-    switch(type){
-     case 'bp':
+    let action;
+    let usermed;
+    switch (type) {
+      case "bp":
         variable = "bloodPressure";
-      
-     break;
-     case 'dbp':
+
+        break;
+      case "dbp":
         variable = "bloodPressure";
-      
-     break;
-     case 'weight':
-       variable = "weight";
-     break;
-     case 'height':
-      variable = "height";
-    break;
-    case 'steps':
-      variable = "steps";
-    break;
-    case 'diet':
-      variable = "diet";
-    break;
-   }
+
+        break;
+      case "weight":
+        variable = "weight";
+        break;
+      case "height":
+        variable = "height";
+        break;
+      case "steps":
+        variable = "steps";
+        break;
+      case "diet":
+        variable = "diet";
+        break;
+    }
     const user = await Users.findOne({ uid: uid });
     if (user) {
-      medicalRecords.findOne({ uid: uid }).then((m) => {
+      usermed = medicalRecords.findOne({ uid: uid }).then(async (m) => {
         if (m) {
-          console.log(m.medicaldata[variable])
           if (
-            m.medicaldata[variable] &&  m.medicaldata[variable].length &&
-            m.medicaldata[variable][m.medicaldata[variable].length - 1].updatedOn == today
+            m.medicaldata[variable] &&
+            m.medicaldata[variable].length &&
+            m.medicaldata[variable][m.medicaldata[variable].length - 1]
+              .updatedOn == today
           ) {
-            updateRecords("update");
+            action = "update";
           } else {
-            updateRecords("insert");
+            action = "insert";
           }
         } else {
-          updateRecords("insert");
+          action = "insert";
         }
+        return await updateRecords(action);
       });
     }
-    // let allUsers;
 
-    // if(allUsers){
-    //   res.send(allUsers)
-    // }
+    usermed
+      .then((u) => {
+        res.send({ success: true, data: u.medicaldata, type });
+      })
+      .catch((error) => {
+        res.send({ message: error });
+      });
   } catch (error) {
-    res.send({ message: "something went wrong" });
+    res.send({ message: error });
   }
 });
-
-
 
 //get
 //
