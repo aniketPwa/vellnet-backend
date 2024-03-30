@@ -172,6 +172,7 @@ app.post(
         .then((existingUser) => {
           if (existingUser) {
             console.log("Document already exists:");
+            res.send({ success: false , message : "Document already exists" });
           } else {
             const newUser = new Users(document);
             return newUser.save();
