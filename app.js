@@ -12,8 +12,8 @@ const JWT_SECRET =
 
 app.use(express.json());
 app.use(cors());
-let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
-// let dbUrl = "mongodb://localhost:27017/vellnet";
+// let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
+let dbUrl = "mongodb://localhost:27017/vellnet";
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -105,17 +105,9 @@ app.post("/login", async (req, res) => {
 // get User
 app.get("/getuserMedicalData/:userId", authenticateToken, async (req, res) => {
   const userId = req.params.userId;
+  console.log(userId)
   try {
     const user = await medicalRecords.findOne({ uid: userId });
-    // const userdata = {
-    //   name: user.fullName,
-    //   gender: user.gender,
-    //   email: user.email,
-    //   add: user.address,
-    //   type: user.userType,
-    //   dob: user.dob,
-    //   uid: user.uid,
-    // };
     res.json(user.medicaldata);
   } catch (error) {
     res.send({ message: "something went wrong" });
@@ -143,55 +135,75 @@ app.get("/getUser/:userId", authenticateToken, async (req, res) => {
 app.use("/uploads", express.static("uploads"));
 
 //add user
-app.post(
-  "/addUser",
-  authenticateToken,
-  upload.single("userImage"),
-  async (req, res) => {
-    const document = req.body;
-    const file = req.file;
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-      if (!document.dob) {
-        document.dob = null;
-      }
-      document.status = "active";
-      const userId = generateUserId();
-      document.uid = userId; // Example usage
-      if (file) {
-        const fileLink = `uploads/${file.filename}`;
-        document.userImg = fileLink;
-      } else {
-        document.userImg = null;
-      }
-      const query = { email: document.email };
-      Users.findOne(query)
-        .then((existingUser) => {
-          if (existingUser) {
-            console.log("Document already exists:");
-            res.send({ success: false , message : "Document already exists" });
-          } else {
-            const newUser = new Users(document);
-            return newUser.save();
-          }
-        })
-        .then((newlyInsertedUser) => {
-          if (newlyInsertedUser) {
-            res.send({ success: true });
-            console.log("New document inserted:");
-          }
-        })
-        .catch((error) => {
-          console.error("Error checking or inserting document:", error);
-        });
-    } catch (error) {
-      console.error("Error inserting document:", error);
-      next(error); // Pass the error to the error handling middleware
+app.post("/updateUser", authenticateToken, async (req, res) => {
+  const document = req.body;
+  console.log(document)
+  try {
+    const query = { uid: document.uid };
+    Users.findOneAndUpdate({uid:document.uid},
+      {
+        ...document
+      },
+    { new: true })
+  .then((updatedDocument) => {
+    if (updatedDocument) {
+      res.send({ success: true })
+    } else {
+      res.send({ success: false })
+      console.log("Document not found");
     }
+  })
   }
+  catch (error) {
+    console.error("Error inserting document:", error);
+    next(error); // Pass the error to the error handling middleware
+  }
+})
+app.post("/addUser", authenticateToken, upload.single("userImage"), async (req, res) => {
+  const document = req.body;
+  const file = req.file;
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    if (!document.dob) {
+      document.dob = null;
+    }
+    document.status = "active";
+    const userId = generateUserId();
+    document.uid = userId; // Example usage
+    if (file) {
+      const fileLink = `uploads/${file.filename}`;
+      document.userImg = fileLink;
+    } else {
+      document.userImg = null;
+    }
+    const query = { email: document.email };
+    Users.findOne(query)
+      .then((existingUser) => {
+        if (existingUser) {
+          console.log("Document already exists:");
+          res.send({ success: false, message: "Document already exists" });
+        } else {
+          const newUser = new Users(document);
+          return newUser.save();
+        }
+      })
+      .then((newlyInsertedUser) => {
+        if (newlyInsertedUser) {
+          res.send({ success: true });
+          console.log("New document inserted:");
+        }
+      })
+      .catch((error) => {
+        console.error("Error checking or inserting document:", error);
+      });
+  } catch (error) {
+    console.error("Error inserting document:", error);
+    next(error); // Pass the error to the error handling middleware
+  }
+}
 );
 
 //get all users by type
@@ -219,23 +231,23 @@ app.post("/getUsers", authenticateToken, async (req, res) => {
   }
 });
 app.post("/deleteUser", authenticateToken, async (req, res) => {
-  const { uid } = req.body; 
+  const { uid } = req.body;
   await Users
-      .findOneAndUpdate({ uid: uid }, 
-        { 
-          $set: {
-            "status": "deleted",
-          },
-         }, 
-        {new:true })
-      .then((updatedDocument) => {
-        if (updatedDocument) {
-          res.send({success:true})
-        } else {
-          res.send({success:false})
-          console.log("Document not found");
-        }
-      })
+    .findOneAndUpdate({ uid: uid },
+      {
+        $set: {
+          "status": "deleted",
+        },
+      },
+      { new: true })
+    .then((updatedDocument) => {
+      if (updatedDocument) {
+        res.send({ success: true })
+      } else {
+        res.send({ success: false })
+        console.log("Document not found");
+      }
+    })
 })
 app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
   const { uid, data, type } = req.body;
@@ -357,7 +369,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
       };
     }
 
-   let updatedData = await medicalRecords
+    let updatedData = await medicalRecords
       .findOneAndUpdate({ uid: uid }, { ...newValues }, { ...options })
       .then((updatedDocument) => {
         if (updatedDocument) {
