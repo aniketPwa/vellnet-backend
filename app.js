@@ -136,10 +136,12 @@ app.use("/uploads", express.static("uploads"));
 
 //add user
 app.post("/updateUser", authenticateToken, upload.single("userImage") ,  async (req, res) => {
-  const document = req.body;
+  let document = req.body;
+  if(document.password){
+    const hashedPassword = await bcrypt.hash(document.password, 10); // Hash password with bcrypt
+    document.password = hashedPassword;
+  }
 
-  // const userData = new Users(document);
-  // console.log(userData)
   try {
     
     Users.findOneAndUpdate({uid:document.uid},
