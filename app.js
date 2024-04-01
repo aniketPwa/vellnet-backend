@@ -135,11 +135,13 @@ app.get("/getUser/:userId", authenticateToken, async (req, res) => {
 app.use("/uploads", express.static("uploads"));
 
 //add user
-app.post("/updateUser", authenticateToken, async (req, res) => {
+app.post("/updateUser", authenticateToken, upload.single("userImage") ,  async (req, res) => {
   const document = req.body;
-  console.log(document)
+
+  // const userData = new Users(document);
+  // console.log(userData)
   try {
-    const query = { uid: document.uid };
+    
     Users.findOneAndUpdate({uid:document.uid},
       {
         ...document
@@ -162,6 +164,7 @@ app.post("/updateUser", authenticateToken, async (req, res) => {
 app.post("/addUser", authenticateToken, upload.single("userImage"), async (req, res) => {
   const document = req.body;
   const file = req.file;
+  
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
