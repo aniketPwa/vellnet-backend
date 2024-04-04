@@ -12,8 +12,8 @@ const JWT_SECRET =
 
 app.use(express.json());
 app.use(cors());
-// let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
-let dbUrl = "mongodb://localhost:27017/vellnet";
+let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
+// let dbUrl = "mongodb://localhost:27017/vellnet";
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
