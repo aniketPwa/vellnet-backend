@@ -12,8 +12,8 @@ const JWT_SECRET =
 
 app.use(express.json());
 app.use(cors());
-// let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
-let dbUrl = "mongodb://localhost:27017/vellnet";
+let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
+// let dbUrl = "mongodb://localhost:27017/vellnet";
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -89,28 +89,27 @@ app.post("/login", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     const validPassword = await bcrypt.compare(password, user.password);
-    console.log(user.status)
+  
     if(user.status=="deleted"){
-      return res.status(401).json({ message: "Account Inactive" });
+      return res.status(401).json({success:true, message: "Account Inactive" });
     }
     if (!validPassword) {
-      return res.status(401).json({ message: "Invalid password" });
+      return res.status(401).json({success:false, message: "Invalid password" });
     }
     const token = jwt.sign({ userId: user.uid }, JWT_SECRET, {
       expiresIn: "24h",
     });
-    const UserData = { token: token, uid: user.uid, type: user.userType };
+    const UserData = { success:true,token: token, uid: user.uid, type: user.userType };
     res.json(UserData);
   } catch (error) {
     console.log(error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({success:false,  message: "Internal Server Error" });
   }
 });
 
 // get User
 app.get("/getuserMedicalData/:userId", authenticateToken, async (req, res) => {
-  const userId = req.params.userId;
-  console.log(userId)
+  const userId = req.params.userId; 
   try {
     const user = await medicalRecords.findOne({ uid: userId });
     res.json(user.medicaldata);
@@ -123,15 +122,6 @@ app.get("/getUser/:userId", authenticateToken, async (req, res) => {
   const userId = req.params.userId;
   try {
     const user = await Users.findOne({ uid: userId });
-    // const userdata = {
-    //   name: user.fullName,
-    //   gender: user.gender,
-    //   email: user.email,
-    //   add: user.address,
-    //   type: user.userType,
-    //   dob: user.dob,
-    //   uid: user.uid,
-    // };
     res.json(user);
   } catch (error) {
     res.send({ message: "something went wrong" });
@@ -142,11 +132,17 @@ app.use("/uploads", express.static("uploads"));
 //add user
 app.post("/updateUser", authenticateToken, upload.single("userImage") ,  async (req, res) => {
   let document = req.body;
+  const file = req.file;
   if(document.password){
     const hashedPassword = await bcrypt.hash(document.password, 10); // Hash password with bcrypt
     document.password = hashedPassword;
   }
-
+  if (file) {
+    const fileLink = `uploads/${file.filename}`;
+    document.userImg = fileLink;
+  } else {
+    document.userImg = null;
+  }
   try {
     
     Users.findOneAndUpdate({uid:document.uid},
@@ -261,9 +257,10 @@ app.post("/deleteUser", authenticateToken, async (req, res) => {
 })
 app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
   const { uid, data, type } = req.body;
-  const time = new Date();
+  const todaysDate = new Date();
   let today =
-    time.getDate() + "/" + (time.getMonth() + 1) + "/" + time.getFullYear();
+  (todaysDate.getMonth() + 1) + "/" + todaysDate.getDate() +  "/" + todaysDate.getFullYear();
+    let time = todaysDate.getHours()+":"+todaysDate.getMinutes();
   async function updateRecords(action) {
     let newValues;
     let options = {};
@@ -274,6 +271,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
           newValues = {
             $set: {
               "medicaldata.bloodPressure.$[element].bp": data,
+              "medicaldata.bloodPressure.$[element].time":time
             },
           };
           break;
@@ -281,6 +279,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
           newValues = {
             $set: {
               "medicaldata.bloodPressure.$[element].dbp": data,
+              "medicaldata.bloodPressure.$[element].time":time
             },
           };
           break;
@@ -288,6 +287,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
           newValues = {
             $set: {
               "medicaldata.weight.$[element].data": data,
+              "medicaldata.weight.$[element].time":time
             },
           };
           break;
@@ -295,6 +295,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
           newValues = {
             $set: {
               "medicaldata.height.$[element].data": data,
+              "medicaldata.height.$[element].time":time
             },
           };
           break;
@@ -302,6 +303,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
           newValues = {
             $set: {
               "medicaldata.steps.$[element].data": data,
+              "medicaldata.steps.$[element].time":time
             },
           };
           break;
@@ -309,6 +311,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
           newValues = {
             $set: {
               "medicaldata.diet.$[element].data": data,
+              "medicaldata.diet.$[element].time": time
             },
           };
           break;
@@ -328,6 +331,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
             "medicaldata.bloodPressure": {
               bp: data,
               updatedOn: today,
+              time:time
             },
           };
 
@@ -337,6 +341,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
             "medicaldata.bloodPressure": {
               dbp: data,
               updatedOn: today,
+              time:time
             },
           };
           break;
@@ -345,6 +350,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
             "medicaldata.weight": {
               data: data,
               updatedOn: today,
+              time:time
             },
           };
           break;
@@ -353,6 +359,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
             "medicaldata.height": {
               data: data,
               updatedOn: today,
+              time:time
             },
           };
           break;
@@ -361,6 +368,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
             "medicaldata.steps": {
               data: data,
               updatedOn: today,
+              time:time
             },
           };
           break;
@@ -369,6 +377,7 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
             "medicaldata.diet": {
               data: data,
               updatedOn: today,
+              time:time
             },
           };
           break;
