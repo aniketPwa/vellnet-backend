@@ -12,8 +12,8 @@ const JWT_SECRET =
 
 app.use(express.json());
 app.use(cors());
-let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
-// let dbUrl = "mongodb://localhost:27017/vellnet";
+// let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
+let dbUrl = "mongodb://localhost:27017/vellnet";
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -445,6 +445,116 @@ app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
         } else {
           action = "insert";
         }
+        return await updateRecords(action);
+      });
+    }
+
+    usermed
+      .then((u) => {
+        res.send({ success: true, data: u.medicaldata, type });
+      })
+      .catch((error) => {
+        res.send({ message: error });
+      });
+  } catch (error) {
+    res.send({ message: error });
+  }
+});
+
+app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
+  const { uid, data, type } = req.body;
+  const todaysDate = new Date();
+  let today = (todaysDate.getMonth() + 1) + "/" + todaysDate.getDate() +  "/" + todaysDate.getFullYear();
+  let time = todaysDate.getHours()+":"+todaysDate.getMinutes();
+  let lastTime;
+  async function updateRecords(action) {
+    console.log('actikn',action)
+    let newValues;
+    let options = {};
+    let dataUpdate;
+    if (action == "update") {
+      console.log('time',lastTime)
+      if(type=="bp"){
+        dataUpdate =  {
+          "medicaldata.bloodPressure.bp.$[element].data": data,
+          "medicaldata.bloodPressure.bp.$[element].time":time
+        }
+      } else {
+        dataUpdate =  {
+          "medicaldata.bloodPressure.dbp.$[element].data": data,
+          "medicaldata.bloodPressure.dbp.$[element].time":time
+        }
+      }
+      newValues = {
+        $set:dataUpdate,
+      };
+      options = {
+        arrayFilters: [{ "element.updatedOn": today ,"element.time": lastTime  }],
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      };
+    } else {
+      options = { upsert: true, new: true, setDefaultsOnInsert: true };
+      let pushData = {
+        "medicaldata.bloodPressure": {
+          bp: data,
+          updatedOn: today,
+          time:time
+        },
+      };
+
+      newValues = {
+        $push: pushData,
+      };
+    }
+
+    let updatedData = await medicalRecords
+      .findOneAndUpdate({ uid: uid }, { ...newValues }, { ...options })
+      .then((updatedDocument) => {
+        if (updatedDocument) {
+          return updatedDocument;
+        } else {
+          console.log("Document not found");
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+    return updatedData;
+  }
+  try {
+    let variable = "bloodPressure";
+    let action;
+    let usermed;
+ 
+    const user = await Users.findOne({ uid: uid });
+    if (user) {
+      usermed = medicalRecords.findOne({ uid: uid }).then(async (m) => {
+        if (m) {
+          if (
+            m.medicaldata[variable] &&
+            m.medicaldata[variable].length && m.medicaldata[variable][m.medicaldata[variable].length - 1].updatedOn == today
+          ) {
+            const timeSplit = m.medicaldata[variable][m.medicaldata[variable].length - 1].time.split(':')
+            const lastEntry = new Date();
+            lastEntry.setHours(timeSplit[0]);
+            lastEntry.setMinutes(timeSplit[1]);
+            const timeNow = new Date(); 
+            const elapsedTimeInMillis = timeNow - lastEntry;   
+              if(elapsedTimeInMillis/120000 > 1){
+                action = "insertTime";
+              }else{
+                lastTime = m.medicaldata[variable][m.medicaldata[variable].length - 1].time;
+                action = "update";
+              } 
+          } else {
+            action = "insert";
+          }
+        } else {
+          action = "insert";
+        }
+        // return {success:true};
         return await updateRecords(action);
       });
     }
