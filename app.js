@@ -12,8 +12,8 @@ const JWT_SECRET =
 
 app.use(express.json());
 app.use(cors());
-// let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
-let dbUrl = "mongodb://localhost:27017/vellnet";
+let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
+// let dbUrl = "mongodb://localhost:27017/vellnet";
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -465,25 +465,20 @@ app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
   const { uid, data, type } = req.body;
   const todaysDate = new Date();
   let today = (todaysDate.getMonth() + 1) + "/" + todaysDate.getDate() +  "/" + todaysDate.getFullYear();
-  let time = todaysDate.getHours()+":"+todaysDate.getMinutes();
+  let time = todaysDate.getHours()+":"+todaysDate.getMinutes().length;
   let lastTime;
   async function updateRecords(action) {
     console.log('actikn',action)
     let newValues;
     let options = {};
     let dataUpdate;
+    console.log('data',data)
     if (action == "update") {
       console.log('time',lastTime)
-      if(type=="bp"){
-        dataUpdate =  {
-          "medicaldata.bloodPressure.bp.$[element].data": data,
-          "medicaldata.bloodPressure.bp.$[element].time":time
-        }
-      } else {
-        dataUpdate =  {
-          "medicaldata.bloodPressure.dbp.$[element].data": data,
-          "medicaldata.bloodPressure.dbp.$[element].time":time
-        }
+      dataUpdate =  {
+        "medicaldata.bloodPressure.$[element].bp": data.bp,
+        "medicaldata.bloodPressure.$[element].dbp": data.dbp,
+        "medicaldata.bloodPressure.$[element].time":time
       }
       newValues = {
         $set:dataUpdate,
@@ -498,7 +493,8 @@ app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
       options = { upsert: true, new: true, setDefaultsOnInsert: true };
       let pushData = {
         "medicaldata.bloodPressure": {
-          bp: data,
+          bp: data.bp,
+          dbp: data.dbp,
           updatedOn: today,
           time:time
         },
@@ -508,7 +504,6 @@ app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
         $push: pushData,
       };
     }
-
     let updatedData = await medicalRecords
       .findOneAndUpdate({ uid: uid }, { ...newValues }, { ...options })
       .then((updatedDocument) => {
@@ -564,10 +559,10 @@ app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
         res.send({ success: true, data: u.medicaldata, type });
       })
       .catch((error) => {
-        res.send({ message: error });
+        res.send({success: false ,  message: error });
       });
   } catch (error) {
-    res.send({ message: error });
+    res.send({success: false, message: error });
   }
 });
 
