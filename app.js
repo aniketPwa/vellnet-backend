@@ -465,7 +465,7 @@ app.post("/updateBloodPressure", authenticateToken, async (req, res) => {
   const { uid, data, type } = req.body;
   const todaysDate = new Date();
   let today = (todaysDate.getMonth() + 1) + "/" + todaysDate.getDate() +  "/" + todaysDate.getFullYear();
-  let time = todaysDate.getHours()+":"+todaysDate.getMinutes().length;
+  let time = todaysDate.getHours()+":"+todaysDate.getMinutes();
   let lastTime;
   async function updateRecords(action) {
     console.log('actikn',action)
