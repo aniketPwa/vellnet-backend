@@ -256,7 +256,7 @@ app.post("/deleteUser", authenticateToken, async (req, res) => {
     })
 })
 app.post("/updateMedicalRecords", authenticateToken, async (req, res) => {
-  const { uid, data, type } = req.body;
+  const { uid, data, type } = req.body; 
   const todaysDate = new Date();
   let today =
   (todaysDate.getMonth() + 1) + "/" + todaysDate.getDate() +  "/" + todaysDate.getFullYear();
