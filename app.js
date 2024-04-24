@@ -37,7 +37,10 @@ const userSchema = new mongoose.Schema({
   certificates: { type: String },
   status: { type: String },
 });
-
+app.get('/', (req, res) => {
+  console.log('API accessed at: http://api.vellnet.com:3000');
+  res.send('Hello World!');
+});
 userSchema.pre("save", async function (next) {
   try {
     if (!this.isModified("password")) {
