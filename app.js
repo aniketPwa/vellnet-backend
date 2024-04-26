@@ -36,6 +36,8 @@ const userSchema = new mongoose.Schema({
   userImg: { type: String },
   certificates: { type: String },
   status: { type: String },
+  race: { type: String },
+  occupation: { type: String },
 });
 app.get('/', (req, res) => {
   console.log('API accessed at: http://api.vellnet.com:3000');
