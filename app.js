@@ -135,7 +135,7 @@ app.get("/getUser/:userId", authenticateToken, async (req, res) => {
 app.use("/uploads", express.static("uploads"));
 
 //add user
-app.post("/updateUser", authenticateToken, upload.single("userImage") ,  async (req, res) => {
+app.post("/updateUser", authenticateToken, upload.single("userImage") ,  async (req, res) => { 
   let document = req.body;
   const file = req.file;
   if(document.password){
