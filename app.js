@@ -14,10 +14,7 @@ app.use(express.json());
 app.use(cors());
 let dbUrl = "mongodb://admin:your_DB_password@ec2-3-133-111-105.us-east-2.compute.amazonaws.com:27017/vellnet"
 // let dbUrl = "mongodb://localhost:27017/vellnet";
-mongoose.connect(dbUrl, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+mongoose.connect(dbUrl);
 // bcrypt.hash("admin@123", 10).then((p) => {
 //   console.log(p);
 // });
@@ -40,7 +37,7 @@ const userSchema = new mongoose.Schema({
   occupation: { type: String },
 });
 app.get('/', (req, res) => {
-  console.log('API accessed at: http://api.vellnet.com:3000');
+  console.log('API accessed at: http://vellnet.com:3000');
   res.send('Hello World!');
 });
 userSchema.pre("save", async function (next) {
